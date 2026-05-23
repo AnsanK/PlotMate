@@ -1,5 +1,6 @@
 import type { DataSet } from "@/types/dataset";
 import { Search } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface LeftPanelProps {
   dataset: DataSet;
@@ -15,6 +16,7 @@ export function LeftPanel({ dataset }: LeftPanelProps) {
       <div className="flex-1 overflow-hidden rounded-lg border border-border bg-card p-2 text-xs text-muted-foreground">
         MSR list placeholder · {dataset.msrItems.length} items
       </div>
+      <ThemeToggle />
       <button
         type="button"
         disabled
