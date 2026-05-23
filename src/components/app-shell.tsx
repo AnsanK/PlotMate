@@ -12,7 +12,7 @@ export function AppShell({ dataset }: AppShellProps) {
     <div className="flex h-screen gap-2.5 bg-muted/40 p-3">
       <LeftPanel dataset={dataset} />
       <ChartGridArea dataset={dataset} />
-      <RightPanel />
+      <RightPanel dataset={dataset} />
     </div>
   );
 }
