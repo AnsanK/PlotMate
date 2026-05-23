@@ -46,7 +46,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const data: Data[] = useMemo(() => {
     const traces: Data[] = [
       {
-        type: "scattergl",
+        type: "scatter",
         mode: "markers",
         x: xs,
         y: ys,
@@ -57,7 +57,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     ];
     if (trendline) {
       traces.push({
-        type: "scattergl",
+        type: "scatter",
         mode: "lines",
         x: trendline.x,
         y: trendline.y,
