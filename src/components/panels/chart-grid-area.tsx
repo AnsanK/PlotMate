@@ -56,7 +56,7 @@ export function ChartGridArea({ dataset }: ChartGridAreaProps) {
         <span className="text-[10px]">scroll ↓ for more</span>
       </header>
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="grid auto-rows-[180px] grid-cols-3 gap-2">
+        <div className="grid auto-rows-[180px] grid-cols-4 gap-2">
           {drawnItems.map((item) => (
             <ChartCard
               key={item.name}
