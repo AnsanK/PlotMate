@@ -58,13 +58,14 @@ export function applyAction(
       return { ...state, selectedIds: new Set(), lastClickedId: null };
 
     case "draw": {
-      const nextDrawn = new Set(state.drawnIds);
-      for (const id of state.selectedIds) nextDrawn.add(id);
+      if (state.selectedIds.size === 0) return state;
       return {
         ...state,
-        drawnIds: nextDrawn,
+        drawnIds: new Set(state.selectedIds),
         selectedIds: new Set(),
         lastClickedId: null,
+        selectedChartIds: new Set(),
+        lastClickedChartId: null,
       };
     }
 

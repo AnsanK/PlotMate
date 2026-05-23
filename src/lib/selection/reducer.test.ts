@@ -107,27 +107,42 @@ describe("selection reducer", () => {
     });
   });
 
-  describe("draw (push selected → drawn, skip already-drawn)", () => {
-    it("adds non-drawn selected ids to drawnIds, drops them from selectedIds", () => {
+  describe("draw (replace drawn with selected)", () => {
+    it("replaces drawnIds entirely with selectedIds (no accumulation)", () => {
       const state: SelectionState = {
         ...initial,
         selectedIds: new Set(["a", "b", "c"]),
-        drawnIds: new Set(["b"]),
+        drawnIds: new Set(["x", "y"]),
         lastClickedId: "c",
       };
       const next = applyAction(state, { type: "draw" });
       expect([...next.drawnIds].sort()).toEqual(["a", "b", "c"]);
       expect(next.selectedIds.size).toBe(0);
+      expect(next.lastClickedId).toBeNull();
     });
 
-    it("is a no-op when nothing selected", () => {
+    it("is a no-op when nothing selected (drawnIds preserved)", () => {
       const state: SelectionState = {
         ...initial,
-        drawnIds: new Set(["x"]),
+        drawnIds: new Set(["x", "y"]),
       };
       const next = applyAction(state, { type: "draw" });
-      expect([...next.drawnIds]).toEqual(["x"]);
+      expect([...next.drawnIds].sort()).toEqual(["x", "y"]);
       expect(next.selectedIds.size).toBe(0);
+    });
+
+    it("clears selectedChartIds on draw (cards replaced)", () => {
+      const state: SelectionState = {
+        ...initial,
+        selectedIds: new Set(["a"]),
+        drawnIds: new Set(["x"]),
+        selectedChartIds: new Set(["x"]),
+        lastClickedChartId: "x",
+      };
+      const next = applyAction(state, { type: "draw" });
+      expect([...next.drawnIds]).toEqual(["a"]);
+      expect(next.selectedChartIds.size).toBe(0);
+      expect(next.lastClickedChartId).toBeNull();
     });
   });
 

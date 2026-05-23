@@ -15,7 +15,6 @@ interface LeftPanelProps {
 export function LeftPanel({ dataset }: LeftPanelProps) {
   const dispatch = useSelectionStore((s) => s.dispatch);
   const selectedIds = useSelectionStore((s) => s.selectedIds);
-  const drawnIds = useSelectionStore((s) => s.drawnIds);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -27,13 +26,12 @@ export function LeftPanel({ dataset }: LeftPanelProps) {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName.toLowerCase();
         if (tag === "input" || tag === "textarea") return;
-        const hasNew = [...selectedIds].some((id) => !drawnIds.has(id));
-        if (hasNew) dispatch({ type: "draw" });
+        if (selectedIds.size > 0) dispatch({ type: "draw" });
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, selectedIds, drawnIds]);
+  }, [dispatch, selectedIds]);
 
   return (
     <aside className="flex w-[175px] shrink-0 flex-col gap-1.5">
