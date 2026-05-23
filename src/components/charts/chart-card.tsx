@@ -128,7 +128,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
           r={corrText} · n={reg.n}
         </span>
       </header>
-      <div className="min-h-0 flex-1" onClick={(e) => e.stopPropagation()}>
+      <div className="min-h-0 flex-1">
         <Plot
           data={data}
           layout={layout}
