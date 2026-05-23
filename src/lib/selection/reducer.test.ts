@@ -95,6 +95,7 @@ describe("selection reducer", () => {
   describe("clearSelection (Esc)", () => {
     it("clears selection but keeps drawn", () => {
       const state: SelectionState = {
+        ...initial,
         selectedIds: new Set(["a", "b"]),
         drawnIds: new Set(["c"]),
         lastClickedId: "b",
@@ -109,6 +110,7 @@ describe("selection reducer", () => {
   describe("draw (push selected → drawn, skip already-drawn)", () => {
     it("adds non-drawn selected ids to drawnIds, drops them from selectedIds", () => {
       const state: SelectionState = {
+        ...initial,
         selectedIds: new Set(["a", "b", "c"]),
         drawnIds: new Set(["b"]),
         lastClickedId: "c",
