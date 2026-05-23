@@ -12,6 +12,9 @@ export default function Home() {
         fontFamily: 'ui-monospace, monospace',
         fontSize: 13,
         lineHeight: 1.5,
+        background: '#ffffff',
+        color: '#18181b',
+        minHeight: '100vh',
       }}
     >
       <h1 style={{ fontSize: 18, marginBottom: 16 }}>
