@@ -15,17 +15,27 @@ export function MsrList({ items }: MsrListProps) {
   const selectedIds = useSelectionStore((s) => s.selectedIds);
   const drawnIds = useSelectionStore((s) => s.drawnIds);
   const dispatch = useSelectionStore((s) => s.dispatch);
+  const group1Ids = useSelectionStore((s) => s.group1Ids);
+  const group2Ids = useSelectionStore((s) => s.group2Ids);
 
   const filtered = useMemo(
-    () => items.filter((it) => matchesQuery(it.name, searchQuery)),
-    [items, searchQuery],
+    () =>
+      items.filter(
+        (it) =>
+          matchesQuery(it.name, searchQuery) &&
+          !group1Ids.has(it.name) &&
+          !group2Ids.has(it.name),
+      ),
+    [items, searchQuery, group1Ids, group2Ids],
   );
   const orderedIds = useMemo(() => filtered.map((it) => it.name), [filtered]);
 
   if (filtered.length === 0) {
+    const allGroupedCount = group1Ids.size + group2Ids.size;
+    const allInGroups = allGroupedCount === items.length;
     return (
       <div className="flex flex-1 items-center justify-center rounded-lg border border-border bg-card text-xs text-muted-foreground">
-        검색 결과 없음
+        {allInGroups ? "모든 항목이 채택됨" : "검색 결과 없음"}
       </div>
     );
   }
