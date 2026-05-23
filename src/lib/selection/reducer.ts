@@ -2,6 +2,8 @@ export interface SelectionState {
   selectedIds: Set<string>;
   drawnIds: Set<string>;
   lastClickedId: string | null;
+  selectedChartIds: Set<string>;
+  lastClickedChartId: string | null;
 }
 
 export type SelectionAction =
@@ -10,7 +12,10 @@ export type SelectionAction =
   | { type: "range"; id: string; orderedIds: string[] }
   | { type: "clearSelection" }
   | { type: "draw" }
-  | { type: "setDrawn"; id: string; drawn: boolean };
+  | { type: "setDrawn"; id: string; drawn: boolean }
+  | { type: "toggleChart"; id: string; orderedIds: string[] }
+  | { type: "rangeChart"; id: string; orderedIds: string[] }
+  | { type: "clearChartSelection" };
 
 export function applyAction(
   state: SelectionState,
@@ -64,10 +69,47 @@ export function applyAction(
     }
 
     case "setDrawn": {
-      const next = new Set(state.drawnIds);
-      if (action.drawn) next.add(action.id);
-      else next.delete(action.id);
-      return { ...state, drawnIds: next };
+      const nextDrawn = new Set(state.drawnIds);
+      const nextChartSel = new Set(state.selectedChartIds);
+      if (action.drawn) {
+        nextDrawn.add(action.id);
+      } else {
+        nextDrawn.delete(action.id);
+        nextChartSel.delete(action.id);
+      }
+      return {
+        ...state,
+        drawnIds: nextDrawn,
+        selectedChartIds: nextChartSel,
+      };
     }
+
+    case "toggleChart": {
+      const next = new Set(state.selectedChartIds);
+      if (next.has(action.id)) next.delete(action.id);
+      else next.add(action.id);
+      return { ...state, selectedChartIds: next, lastClickedChartId: action.id };
+    }
+
+    case "rangeChart": {
+      if (state.lastClickedChartId === null) {
+        return {
+          ...state,
+          selectedChartIds: new Set([action.id]),
+          lastClickedChartId: action.id,
+        };
+      }
+      const from = action.orderedIds.indexOf(state.lastClickedChartId);
+      const to = action.orderedIds.indexOf(action.id);
+      if (from < 0 || to < 0) return state;
+      const [lo, hi] = from <= to ? [from, to] : [to, from];
+      const slice = action.orderedIds.slice(lo, hi + 1);
+      const next = new Set(state.selectedChartIds);
+      for (const id of slice) next.add(id);
+      return { ...state, selectedChartIds: next, lastClickedChartId: action.id };
+    }
+
+    case "clearChartSelection":
+      return { ...state, selectedChartIds: new Set(), lastClickedChartId: null };
   }
 }

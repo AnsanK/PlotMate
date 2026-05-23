@@ -5,6 +5,8 @@ const initial: SelectionState = {
   selectedIds: new Set<string>(),
   drawnIds: new Set<string>(),
   lastClickedId: null,
+  selectedChartIds: new Set<string>(),
+  lastClickedChartId: null,
 };
 
 describe("selection reducer", () => {
@@ -145,5 +147,80 @@ describe("selection reducer", () => {
       const next = applyAction(state, { type: "setDrawn", id: "a", drawn: false });
       expect([...next.drawnIds]).toEqual(["b"]);
     });
+  });
+});
+
+describe("chart card selection (toggleChart / rangeChart / clearChartSelection)", () => {
+  const initialChart: SelectionState = {
+    selectedIds: new Set<string>(),
+    drawnIds: new Set<string>(),
+    lastClickedId: null,
+    selectedChartIds: new Set<string>(),
+    lastClickedChartId: null,
+  };
+
+  it("toggleChart adds id when not selected", () => {
+    const next = applyAction(initialChart, {
+      type: "toggleChart",
+      id: "MSR0009",
+      orderedIds: ["MSR0009", "MSR0018"],
+    });
+    expect([...next.selectedChartIds]).toEqual(["MSR0009"]);
+    expect(next.lastClickedChartId).toBe("MSR0009");
+  });
+
+  it("toggleChart removes id when already selected", () => {
+    const state: SelectionState = {
+      ...initialChart,
+      selectedChartIds: new Set(["MSR0009"]),
+      lastClickedChartId: "MSR0009",
+    };
+    const next = applyAction(state, {
+      type: "toggleChart",
+      id: "MSR0009",
+      orderedIds: ["MSR0009"],
+    });
+    expect(next.selectedChartIds.size).toBe(0);
+  });
+
+  it("rangeChart selects all between lastClickedChartId and current", () => {
+    const state: SelectionState = {
+      ...initialChart,
+      selectedChartIds: new Set(["a"]),
+      lastClickedChartId: "a",
+    };
+    const next = applyAction(state, {
+      type: "rangeChart",
+      id: "c",
+      orderedIds: ["a", "b", "c", "d"],
+    });
+    expect([...next.selectedChartIds].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("clearChartSelection clears chart selection only", () => {
+    const state: SelectionState = {
+      ...initialChart,
+      selectedIds: new Set(["x"]),
+      selectedChartIds: new Set(["MSR0009"]),
+      lastClickedChartId: "MSR0009",
+    };
+    const next = applyAction(state, { type: "clearChartSelection" });
+    expect(next.selectedChartIds.size).toBe(0);
+    expect([...next.selectedIds]).toEqual(["x"]);
+  });
+
+  it("setDrawn(drawn=false) removes from drawnIds AND from selectedChartIds", () => {
+    const state: SelectionState = {
+      ...initialChart,
+      drawnIds: new Set(["MSR0009", "MSR0018"]),
+      selectedChartIds: new Set(["MSR0009"]),
+    };
+    const next = applyAction(state, {
+      type: "setDrawn",
+      id: "MSR0009",
+      drawn: false,
+    });
+    expect([...next.drawnIds]).toEqual(["MSR0018"]);
+    expect(next.selectedChartIds.size).toBe(0);
   });
 });
