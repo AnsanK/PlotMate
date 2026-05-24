@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { Chip, MsrItem } from "@/types/dataset";
 import { useSelectionStore } from "@/lib/store/selection-store";
 import { linearRegression } from "@/lib/stats/regression";
@@ -103,6 +103,12 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     }
   }
 
+  useEffect(() => {
+    return () => {
+      dispatch({ type: "setChartReady", id: msr.name, ready: false });
+    };
+  }, [msr.name, dispatch]);
+
   return (
     <div
       role="button"
@@ -135,6 +141,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
           config={{ displayModeBar: false, responsive: true }}
           style={{ width: "100%", height: "100%" }}
           useResizeHandler
+          onInitialized={() => dispatch({ type: "setChartReady", id: msr.name, ready: true })}
         />
       </div>
     </div>

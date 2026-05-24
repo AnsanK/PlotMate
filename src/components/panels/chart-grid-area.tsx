@@ -12,6 +12,7 @@ interface ChartGridAreaProps {
 export function ChartGridArea({ dataset }: ChartGridAreaProps) {
   const drawnIds = useSelectionStore((s) => s.drawnIds);
   const selectedChartIds = useSelectionStore((s) => s.selectedChartIds);
+  const readyChartIds = useSelectionStore((s) => s.readyChartIds);
 
   const drawnItems = useMemo(
     () => dataset.msrItems.filter((it) => drawnIds.has(it.name)),
@@ -21,6 +22,9 @@ export function ChartGridArea({ dataset }: ChartGridAreaProps) {
     () => drawnItems.map((it) => it.name),
     [drawnItems],
   );
+
+  const readyCount = drawnItems.filter((it) => readyChartIds.has(it.name)).length;
+  const renderingCount = drawnItems.length - readyCount;
 
   if (drawnItems.length === 0) {
     return (
@@ -43,7 +47,12 @@ export function ChartGridArea({ dataset }: ChartGridAreaProps) {
     <section className="flex flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       <header className="flex items-center justify-between border-b border-border px-3 py-2 text-xs text-muted-foreground">
         <span>
-          {drawnItems.length} chart{drawnItems.length > 1 ? "s" : ""} shown
+          {drawnItems.length} chart{drawnItems.length > 1 ? "s" : ""}
+          {renderingCount > 0 && (
+            <span className="text-muted-foreground">
+              {" "}({readyCount} ready, {renderingCount} rendering…)
+            </span>
+          )}
           {selectedChartIds.size > 0 && (
             <>
               {" · "}
