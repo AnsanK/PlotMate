@@ -13,6 +13,7 @@ const initial: SelectionState = {
   selectedInGroup2Ids: new Set<string>(),
   lastClickedInGroup1Id: null,
   lastClickedInGroup2Id: null,
+  readyChartIds: new Set<string>(),
 };
 
 describe("selection reducer", () => {
@@ -186,6 +187,7 @@ describe("chart card selection (toggleChart / rangeChart / clearChartSelection)"
     selectedInGroup2Ids: new Set<string>(),
     lastClickedInGroup1Id: null,
     lastClickedInGroup2Id: null,
+    readyChartIds: new Set<string>(),
   };
 
   it("toggleChart adds id when not selected", () => {
@@ -267,6 +269,7 @@ describe("group workflow (addToGroup / deleteFromGroup / toggleInGroup / rangeIn
     selectedInGroup2Ids: new Set<string>(),
     lastClickedInGroup1Id: null,
     lastClickedInGroup2Id: null,
+    readyChartIds: new Set<string>(),
   };
 
   describe("addToGroup", () => {
@@ -441,5 +444,68 @@ describe("group workflow (addToGroup / deleteFromGroup / toggleInGroup / rangeIn
       expect([...next.group1Ids].sort()).toEqual(["g1a", "g1b"]);
       expect([...next.group2Ids]).toEqual(["g2a"]);
     });
+  });
+});
+
+describe("ready chart tracking (setChartReady)", () => {
+  const initialReady: SelectionState = {
+    selectedIds: new Set<string>(),
+    drawnIds: new Set<string>(),
+    lastClickedId: null,
+    selectedChartIds: new Set<string>(),
+    lastClickedChartId: null,
+    group1Ids: new Set<string>(),
+    group2Ids: new Set<string>(),
+    selectedInGroup1Ids: new Set<string>(),
+    selectedInGroup2Ids: new Set<string>(),
+    lastClickedInGroup1Id: null,
+    lastClickedInGroup2Id: null,
+    readyChartIds: new Set<string>(),
+  };
+
+  it("setChartReady true adds id to readyChartIds", () => {
+    const next = applyAction(initialReady, {
+      type: "setChartReady",
+      id: "MSR0009",
+      ready: true,
+    });
+    expect([...next.readyChartIds]).toEqual(["MSR0009"]);
+  });
+
+  it("setChartReady false removes id from readyChartIds", () => {
+    const state: SelectionState = {
+      ...initialReady,
+      readyChartIds: new Set(["MSR0009", "MSR0001"]),
+    };
+    const next = applyAction(state, {
+      type: "setChartReady",
+      id: "MSR0009",
+      ready: false,
+    });
+    expect([...next.readyChartIds]).toEqual(["MSR0001"]);
+  });
+
+  it("draw clears readyChartIds (all cards re-mount with new data)", () => {
+    const state: SelectionState = {
+      ...initialReady,
+      selectedIds: new Set(["new1"]),
+      readyChartIds: new Set(["old1", "old2"]),
+    };
+    const next = applyAction(state, { type: "draw" });
+    expect(next.readyChartIds.size).toBe(0);
+  });
+
+  it("setDrawn(drawn=false) removes id from readyChartIds", () => {
+    const state: SelectionState = {
+      ...initialReady,
+      drawnIds: new Set(["MSR0009"]),
+      readyChartIds: new Set(["MSR0009"]),
+    };
+    const next = applyAction(state, {
+      type: "setDrawn",
+      id: "MSR0009",
+      drawn: false,
+    });
+    expect(next.readyChartIds.size).toBe(0);
   });
 });

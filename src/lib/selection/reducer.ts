@@ -10,6 +10,7 @@ export interface SelectionState {
   selectedInGroup2Ids: Set<string>;
   lastClickedInGroup1Id: string | null;
   lastClickedInGroup2Id: string | null;
+  readyChartIds: Set<string>;
 }
 
 export type GroupNumber = 1 | 2;
@@ -28,7 +29,8 @@ export type SelectionAction =
   | { type: "toggleInGroup"; group: GroupNumber; id: string; orderedIds: string[] }
   | { type: "rangeInGroup"; group: GroupNumber; id: string; orderedIds: string[] }
   | { type: "clearGroupSelection"; group: GroupNumber }
-  | { type: "deleteFromGroup"; group: GroupNumber };
+  | { type: "deleteFromGroup"; group: GroupNumber }
+  | { type: "setChartReady"; id: string; ready: boolean };
 
 function groupKeys(group: GroupNumber) {
   return group === 1
@@ -85,22 +87,26 @@ export function applyAction(
         lastClickedId: null,
         selectedChartIds: new Set(),
         lastClickedChartId: null,
+        readyChartIds: new Set(),
       };
     }
 
     case "setDrawn": {
       const nextDrawn = new Set(state.drawnIds);
       const nextChartSel = new Set(state.selectedChartIds);
+      const nextReady = new Set(state.readyChartIds);
       if (action.drawn) {
         nextDrawn.add(action.id);
       } else {
         nextDrawn.delete(action.id);
         nextChartSel.delete(action.id);
+        nextReady.delete(action.id);
       }
       return {
         ...state,
         drawnIds: nextDrawn,
         selectedChartIds: nextChartSel,
+        readyChartIds: nextReady,
       };
     }
 
@@ -200,6 +206,13 @@ export function applyAction(
         [k.sel]: new Set(),
         [k.last]: null,
       };
+    }
+
+    case "setChartReady": {
+      const next = new Set(state.readyChartIds);
+      if (action.ready) next.add(action.id);
+      else next.delete(action.id);
+      return { ...state, readyChartIds: next };
     }
   }
 }
