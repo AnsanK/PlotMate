@@ -4,10 +4,13 @@ import { useEffect, useMemo } from "react";
 import type { Chip, MsrItem } from "@/types/dataset";
 import { useSelectionStore } from "@/lib/store/selection-store";
 import { linearRegression } from "@/lib/stats/regression";
+import { sampleIndices } from "@/lib/stats/downsample";
 import { cn } from "@/lib/utils";
 import { Plot } from "@/components/charts/plotly-loader";
 import { useInViewport } from "@/lib/hooks/use-in-viewport";
 import type { Data, Layout } from "plotly.js";
+
+const SAMPLE_LIMIT = 1500;
 
 interface ChartCardProps {
   msr: MsrItem;
@@ -21,16 +24,18 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const isSelected = selectedChartIds.has(msr.name);
   const { ref, inViewport } = useInViewport<HTMLDivElement>();
 
-  const { xs, ys } = useMemo(() => {
+  const { xs, ys, totalN } = useMemo(() => {
+    const sampled = sampleIndices(chips.length, SAMPLE_LIMIT);
     const _xs: number[] = [];
     const _ys: number[] = [];
-    for (const chip of chips) {
+    for (const i of sampled) {
+      const chip = chips[i];
       const v = msr.values[chip.xy];
       if (v === undefined || v === null || Number.isNaN(v)) continue;
       _xs.push(chip.cd);
       _ys.push(v);
     }
-    return { xs: _xs, ys: _ys };
+    return { xs: _xs, ys: _ys, totalN: chips.length };
   }, [chips, msr]);
 
   const reg = useMemo(() => linearRegression(xs, ys), [xs, ys]);
@@ -135,6 +140,9 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
         <span className="font-medium text-foreground">{msr.name}</span>
         <span className="font-semibold tabular-nums text-selection-fg">
           r={corrText} · n={reg.n}
+          {totalN > reg.n && (
+            <span className="text-muted-foreground/70"> of {totalN}</span>
+          )}
         </span>
       </header>
       <div className="min-h-0 flex-1">
