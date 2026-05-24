@@ -9,9 +9,7 @@ export const Plot: ComponentType<PlotParams> = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-        loading chart…
-      </div>
+      <div className="h-full w-full animate-pulse rounded bg-muted/60" />
     ),
   },
 );
