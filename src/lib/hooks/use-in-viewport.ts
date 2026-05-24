@@ -20,7 +20,12 @@ export function useInViewport<T extends HTMLElement>(
       return;
     }
     const observer = new IntersectionObserver(
-      ([entry]) => setInViewport(entry.isIntersecting),
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInViewport(true);
+          observer.disconnect(); // mount once, keep mounted across scroll
+        }
+      },
       {
         rootMargin: options.rootMargin ?? "200px",
         threshold: options.threshold ?? 0,
