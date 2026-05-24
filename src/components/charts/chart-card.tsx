@@ -6,6 +6,7 @@ import { useSelectionStore } from "@/lib/store/selection-store";
 import { linearRegression } from "@/lib/stats/regression";
 import { cn } from "@/lib/utils";
 import { Plot } from "@/components/charts/plotly-loader";
+import { useInViewport } from "@/lib/hooks/use-in-viewport";
 import type { Data, Layout } from "plotly.js";
 
 interface ChartCardProps {
@@ -18,6 +19,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const selectedChartIds = useSelectionStore((s) => s.selectedChartIds);
   const dispatch = useSelectionStore((s) => s.dispatch);
   const isSelected = selectedChartIds.has(msr.name);
+  const { ref, inViewport } = useInViewport<HTMLDivElement>();
 
   const { xs, ys } = useMemo(() => {
     const _xs: number[] = [];
@@ -46,7 +48,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const data: Data[] = useMemo(() => {
     const traces: Data[] = [
       {
-        type: "scatter",
+        type: "scattergl",
         mode: "markers",
         x: xs,
         y: ys,
@@ -57,7 +59,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     ];
     if (trendline) {
       traces.push({
-        type: "scatter",
+        type: "scattergl",
         mode: "lines",
         x: trendline.x,
         y: trendline.y,
@@ -111,6 +113,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
 
   return (
     <div
+      ref={ref}
       role="button"
       tabIndex={0}
       aria-pressed={isSelected}
@@ -135,14 +138,18 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
         </span>
       </header>
       <div className="min-h-0 flex-1">
-        <Plot
-          data={data}
-          layout={layout}
-          config={{ displayModeBar: false, responsive: true }}
-          style={{ width: "100%", height: "100%" }}
-          useResizeHandler
-          onInitialized={() => dispatch({ type: "setChartReady", id: msr.name, ready: true })}
-        />
+        {inViewport ? (
+          <Plot
+            data={data}
+            layout={layout}
+            config={{ displayModeBar: false, responsive: true }}
+            style={{ width: "100%", height: "100%" }}
+            useResizeHandler
+            onInitialized={() => dispatch({ type: "setChartReady", id: msr.name, ready: true })}
+          />
+        ) : (
+          <div className="h-full w-full animate-pulse rounded bg-muted/60" />
+        )}
       </div>
     </div>
   );
