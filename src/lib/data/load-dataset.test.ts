@@ -5,13 +5,13 @@ import { loadDataset } from './load-dataset';
 const dummyDir = path.resolve(process.cwd(), 'dummy_data');
 
 describe('loadDataset', () => {
-  it('loads chips and msrItems together', () => {
+  it('loads 3000 chips and 100 msrItems together', () => {
     const ds = loadDataset({
       chipsPath: path.join(dummyDir, 'raw_data_chips.xlsx'),
       pivotedPath: path.join(dummyDir, 'raw_data_pivoted.xlsx'),
     });
-    expect(ds.chips).toHaveLength(18);
-    expect(ds.msrItems).toHaveLength(20);
+    expect(ds.chips).toHaveLength(3000);
+    expect(ds.msrItems).toHaveLength(100);
   });
 
   it('every msrItem.values key matches some chip.xy (join consistency)', () => {

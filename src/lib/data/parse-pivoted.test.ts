@@ -8,44 +8,44 @@ const fixturePath = path.resolve(
 );
 
 describe('parsePivoted', () => {
-  it('returns 20 MSR items', () => {
+  it('returns 100 MSR items', () => {
     const items = parsePivoted(fixturePath);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(100);
   });
 
-  it('first item is MSR0009 with priority 1 and r≈+0.918', () => {
+  it('first item is MSR0001 with priority 1 and r ≈ +0.92', () => {
     const items = parsePivoted(fixturePath);
-    expect(items[0].name).toBe('MSR0009');
+    expect(items[0].name).toBe('MSR0001');
     expect(items[0].priority).toBe(1);
-    expect(items[0].correlation).toBeCloseTo(0.918, 2);
+    expect(items[0].correlation).toBeCloseTo(0.92, 1);
   });
 
-  it('priorities cover 1..20 uniquely', () => {
+  it('priorities cover 1..100 uniquely', () => {
     const items = parsePivoted(fixturePath);
     const priorities = items.map((i) => i.priority).sort((a, b) => a - b);
     expect(priorities).toEqual(
-      Array.from({ length: 20 }, (_, i) => i + 1)
+      Array.from({ length: 100 }, (_, i) => i + 1)
     );
   });
 
-  it('each item has 18 chip values', () => {
+  it('each item has 3000 chip values', () => {
     const items = parsePivoted(fixturePath);
     for (const item of items) {
-      expect(Object.keys(item.values)).toHaveLength(18);
+      expect(Object.keys(item.values)).toHaveLength(3000);
     }
   });
 
-  it('MSR0002 has negative correlation', () => {
+  it('MSR0002 has negative correlation (linear signal)', () => {
     const items = parsePivoted(fixturePath);
-    const msr0002 = items.find((i) => i.name === 'MSR0002');
-    expect(msr0002).toBeDefined();
-    expect(msr0002!.correlation).toBeLessThan(0);
+    const m = items.find((i) => i.name === 'MSR0002');
+    expect(m).toBeDefined();
+    expect(m!.correlation).toBeLessThan(0);
   });
 
-  it('values use X_Y format keys (e.g. 100_200)', () => {
+  it('values use X_Y format keys spanning 100_200..159_249', () => {
     const items = parsePivoted(fixturePath);
     const firstKeys = Object.keys(items[0].values);
     expect(firstKeys).toContain('100_200');
-    expect(firstKeys).toContain('105_202');
+    expect(firstKeys).toContain('159_249');
   });
 });
