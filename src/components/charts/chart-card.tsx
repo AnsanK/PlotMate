@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Chip, MsrItem } from "@/types/dataset";
+import type { ToolMode } from "@/lib/selection/reducer";
 import { useSelectionStore } from "@/lib/store/selection-store";
 import { linearRegression } from "@/lib/stats/regression";
 import { sampleIndices } from "@/lib/stats/downsample";
@@ -23,6 +24,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const dispatch = useSelectionStore((s) => s.dispatch);
   const globallyDeleted = useSelectionStore((s) => s.globallyDeletedChipIds);
   const perChartDeletedMap = useSelectionStore((s) => s.perChartDeletedChipIds);
+  const toolMode: ToolMode = useSelectionStore((s) => s.toolMode);
   const isSelected = selectedChartIds.has(msr.name);
   const { ref, inViewport } = useInViewport<HTMLDivElement>();
 
@@ -104,10 +106,10 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
         gridcolor: "rgba(0,0,0,0.05)",
         zeroline: false,
       },
-      dragmode: "zoom",
+      dragmode: toolMode === "idle" ? false : "select",
       hoverlabel: { font: { size: 10 } },
     }),
-    [],
+    [toolMode],
   );
 
   const corrText =
@@ -123,53 +125,91 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   }
 
   const graphDivRef = useRef<HTMLElement | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragEndRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleInitialized = useCallback(
     (_figure: unknown, gd: HTMLElement) => {
       graphDivRef.current = gd;
       dispatch({ type: "setChartReady", id: msr.name, ready: true });
 
-      // Shift+drag → dynamic relayout to box select; mouseup restores zoom.
-      // window.Plotly is exposed globally by plotly.js when react-plotly.js loads it.
-      const getPlotly = (): { relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void } | undefined =>
-        (window as unknown as { Plotly?: { relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void } }).Plotly;
       const onDown = (e: MouseEvent) => {
-        const Plotly = getPlotly();
-        if (!Plotly) return;
-        if (e.shiftKey) {
-          Plotly.relayout(gd, { dragmode: "select" });
-        }
+        dragStartRef.current = { x: e.clientX, y: e.clientY };
       };
-      const onUp = () => {
-        const Plotly = getPlotly();
-        if (!Plotly) return;
-        Plotly.relayout(gd, { dragmode: "zoom" });
+      const onUp = (e: MouseEvent) => {
+        dragEndRef.current = { x: e.clientX, y: e.clientY };
       };
       gd.addEventListener("mousedown", onDown);
-      window.addEventListener("mouseup", onUp);
-      // Stash cleanup on the graphDiv so the unmount effect can run it.
+      gd.addEventListener("mouseup", onUp);
       (gd as HTMLElement & { __plotmateCleanup?: () => void }).__plotmateCleanup = () => {
         gd.removeEventListener("mousedown", onDown);
-        window.removeEventListener("mouseup", onUp);
+        gd.removeEventListener("mouseup", onUp);
       };
     },
     [msr.name, dispatch],
   );
 
   const handleSelected = useCallback(
-    (event: { points?: { pointIndex: number }[] } | undefined) => {
-      if (!event?.points || event.points.length === 0) {
-        dispatch({ type: "setBoxSelection", msrName: msr.name, chipIds: new Set() });
+    (
+      event:
+        | {
+            points?: { pointIndex: number }[];
+            range?: { x: number[]; y: number[] };
+          }
+        | undefined,
+    ) => {
+      if (toolMode === "idle") return;
+
+      if (toolMode === "zoom") {
+        const start = dragStartRef.current;
+        const end = dragEndRef.current;
+        if (!start || !end || !event?.range) return;
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const isZoomIn = dx > 0 && dy > 0;
+
+        const Plotly = (
+          window as {
+            Plotly?: {
+              relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void;
+            };
+          }
+        ).Plotly;
+        const gd = graphDivRef.current;
+        if (!Plotly || !gd) return;
+
+        if (isZoomIn) {
+          Plotly.relayout(gd, {
+            "xaxis.range": event.range.x,
+            "yaxis.range": event.range.y,
+          });
+        } else {
+          Plotly.relayout(gd, {
+            "xaxis.autorange": true,
+            "yaxis.autorange": true,
+          });
+        }
         return;
       }
+
+      if (!event?.points || event.points.length === 0) return;
+
       const chipIds = new Set<string>();
       for (const p of event.points) {
         const chip = plottedChips[p.pointIndex];
         if (chip) chipIds.add(chip.xy);
       }
+      if (chipIds.size === 0) return;
+
       dispatch({ type: "setBoxSelection", msrName: msr.name, chipIds });
+      if (toolMode === "delete") {
+        dispatch({ type: "deletePerChart" });
+      } else if (toolMode === "deleteAll") {
+        dispatch({ type: "deleteGlobal" });
+      }
     },
-    [dispatch, msr.name, plottedChips],
+    [toolMode, dispatch, msr.name, plottedChips],
   );
 
   useEffect(() => {
