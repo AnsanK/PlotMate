@@ -10,7 +10,7 @@ import { Plot } from "@/components/charts/plotly-loader";
 import { useInViewport } from "@/lib/hooks/use-in-viewport";
 import type { Data, Layout } from "plotly.js";
 
-const SAMPLE_LIMIT = 1500;
+const SAMPLE_LIMIT = 500;
 
 interface ChartCardProps {
   msr: MsrItem;
@@ -53,7 +53,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const data: Data[] = useMemo(() => {
     const traces: Data[] = [
       {
-        type: "scattergl",
+        type: "scatter",
         mode: "markers",
         x: xs,
         y: ys,
@@ -64,7 +64,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     ];
     if (trendline) {
       traces.push({
-        type: "scattergl",
+        type: "scatter",
         mode: "lines",
         x: trendline.x,
         y: trendline.y,
