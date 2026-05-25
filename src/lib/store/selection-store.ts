@@ -28,6 +28,7 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
   perChartDeletedChipIds: new Map<string, Set<string>>(),
   currentBoxSelection: null,
   deleteHistory: [],
+  toolMode: "idle",
   searchQuery: "",
   setSearchQuery: (q) => set({ searchQuery: q }),
   dispatch: (action) =>
@@ -50,6 +51,7 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
           perChartDeletedChipIds: state.perChartDeletedChipIds,
           currentBoxSelection: state.currentBoxSelection,
           deleteHistory: state.deleteHistory,
+          toolMode: state.toolMode,
         },
         action,
       );

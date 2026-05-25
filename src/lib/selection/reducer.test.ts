@@ -18,6 +18,7 @@ const initial: SelectionState = {
   perChartDeletedChipIds: new Map<string, Set<string>>(),
   currentBoxSelection: null,
   deleteHistory: [],
+  toolMode: "idle",
 };
 
 describe("selection reducer", () => {
@@ -196,6 +197,7 @@ describe("chart card selection (toggleChart / rangeChart / clearChartSelection)"
     perChartDeletedChipIds: new Map<string, Set<string>>(),
     currentBoxSelection: null,
     deleteHistory: [],
+    toolMode: "idle",
   };
 
   it("toggleChart adds id when not selected", () => {
@@ -282,6 +284,7 @@ describe("group workflow (addToGroup / deleteFromGroup / toggleInGroup / rangeIn
     perChartDeletedChipIds: new Map<string, Set<string>>(),
     currentBoxSelection: null,
     deleteHistory: [],
+    toolMode: "idle",
   };
 
   describe("addToGroup", () => {
@@ -477,6 +480,7 @@ describe("ready chart tracking (setChartReady)", () => {
     perChartDeletedChipIds: new Map<string, Set<string>>(),
     currentBoxSelection: null,
     deleteHistory: [],
+    toolMode: "idle",
   };
 
   it("setChartReady true adds id to readyChartIds", () => {
@@ -544,6 +548,7 @@ describe("delete workflow (setBoxSelection / deletePerChart / deleteGlobal / und
     perChartDeletedChipIds: new Map(),
     currentBoxSelection: null,
     deleteHistory: [],
+    toolMode: "idle",
   };
 
   describe("setBoxSelection", () => {
@@ -717,5 +722,49 @@ describe("delete workflow (setBoxSelection / deletePerChart / deleteGlobal / und
       expect([...next.perChartDeletedChipIds.get("MSR0009")!]).toEqual(["b"]);
       expect(next.deleteHistory).toHaveLength(1);
     });
+  });
+});
+
+describe("toolMode (setToolMode)", () => {
+  const initMode: SelectionState = {
+    selectedIds: new Set(),
+    drawnIds: new Set(),
+    lastClickedId: null,
+    selectedChartIds: new Set(),
+    lastClickedChartId: null,
+    group1Ids: new Set(),
+    group2Ids: new Set(),
+    selectedInGroup1Ids: new Set(),
+    selectedInGroup2Ids: new Set(),
+    lastClickedInGroup1Id: null,
+    lastClickedInGroup2Id: null,
+    readyChartIds: new Set(),
+    globallyDeletedChipIds: new Set(),
+    perChartDeletedChipIds: new Map(),
+    currentBoxSelection: null,
+    deleteHistory: [],
+    toolMode: "idle",
+  };
+
+  it("setToolMode switches to the given mode", () => {
+    const next = applyAction(initMode, { type: "setToolMode", mode: "delete" });
+    expect(next.toolMode).toBe("delete");
+  });
+
+  it("setToolMode to the same mode toggles back to idle", () => {
+    const state: SelectionState = { ...initMode, toolMode: "delete" };
+    const next = applyAction(state, { type: "setToolMode", mode: "delete" });
+    expect(next.toolMode).toBe("idle");
+  });
+
+  it("setToolMode clears currentBoxSelection (switching contexts)", () => {
+    const state: SelectionState = {
+      ...initMode,
+      toolMode: "delete",
+      currentBoxSelection: { msrName: "MSR0009", chipIds: new Set(["a"]) },
+    };
+    const next = applyAction(state, { type: "setToolMode", mode: "zoom" });
+    expect(next.toolMode).toBe("zoom");
+    expect(next.currentBoxSelection).toBeNull();
   });
 });

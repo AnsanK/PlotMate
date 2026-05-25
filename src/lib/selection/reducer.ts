@@ -15,7 +15,10 @@ export interface SelectionState {
   perChartDeletedChipIds: Map<string, Set<string>>;
   currentBoxSelection: { msrName: string; chipIds: Set<string> } | null;
   deleteHistory: DeleteEvent[];
+  toolMode: ToolMode;
 }
+
+export type ToolMode = "idle" | "delete" | "deleteAll" | "zoom";
 
 export type GroupNumber = 1 | 2;
 
@@ -43,7 +46,8 @@ export type SelectionAction =
   | { type: "deletePerChart" }
   | { type: "deleteGlobal" }
   | { type: "undoDelete" }
-  | { type: "resetDelete" };
+  | { type: "resetDelete" }
+  | { type: "setToolMode"; mode: ToolMode };
 
 function groupKeys(group: GroupNumber) {
   return group === 1
@@ -297,6 +301,15 @@ export function applyAction(
         perChartDeletedChipIds: new Map(),
         currentBoxSelection: null,
         deleteHistory: [],
+      };
+    }
+
+    case "setToolMode": {
+      const newMode = state.toolMode === action.mode ? "idle" : action.mode;
+      return {
+        ...state,
+        toolMode: newMode,
+        currentBoxSelection: null,
       };
     }
   }
