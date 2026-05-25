@@ -21,22 +21,35 @@ interface ChartCardProps {
 export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const selectedChartIds = useSelectionStore((s) => s.selectedChartIds);
   const dispatch = useSelectionStore((s) => s.dispatch);
+  const globallyDeleted = useSelectionStore((s) => s.globallyDeletedChipIds);
+  const perChartDeletedMap = useSelectionStore((s) => s.perChartDeletedChipIds);
   const isSelected = selectedChartIds.has(msr.name);
   const { ref, inViewport } = useInViewport<HTMLDivElement>();
 
-  const { xs, ys, totalN } = useMemo(() => {
-    const sampled = sampleIndices(chips.length, SAMPLE_LIMIT);
+  const excludedXys = useMemo(() => {
+    const merged = new Set<string>(globallyDeleted);
+    const own = perChartDeletedMap.get(msr.name);
+    if (own) for (const id of own) merged.add(id);
+    return merged;
+  }, [globallyDeleted, perChartDeletedMap, msr.name]);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { xs, ys, totalN, plottedChips: _plottedChips } = useMemo(() => {
+    const validChips = chips.filter((c) => !excludedXys.has(c.xy));
+    const sampled = sampleIndices(validChips.length, SAMPLE_LIMIT);
     const _xs: number[] = [];
     const _ys: number[] = [];
+    const _plotted: typeof chips = [];
     for (const i of sampled) {
-      const chip = chips[i];
+      const chip = validChips[i];
       const v = msr.values[chip.xy];
       if (v === undefined || v === null || Number.isNaN(v)) continue;
       _xs.push(chip.cd);
       _ys.push(v);
+      _plotted.push(chip);
     }
-    return { xs: _xs, ys: _ys, totalN: chips.length };
-  }, [chips, msr]);
+    return { xs: _xs, ys: _ys, totalN: validChips.length, plottedChips: _plotted };
+  }, [chips, msr, excludedXys]);
 
   const reg = useMemo(() => linearRegression(xs, ys), [xs, ys]);
 
