@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Chip, MsrItem } from "@/types/dataset";
 import { useSelectionStore } from "@/lib/store/selection-store";
 import { linearRegression } from "@/lib/stats/regression";
@@ -33,8 +33,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     return merged;
   }, [globallyDeleted, perChartDeletedMap, msr.name]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { xs, ys, totalN, plottedChips: _plottedChips } = useMemo(() => {
+  const { xs, ys, totalN, plottedChips } = useMemo(() => {
     const validChips = chips.filter((c) => !excludedXys.has(c.xy));
     const sampled = sampleIndices(validChips.length, SAMPLE_LIMIT);
     const _xs: number[] = [];
@@ -105,7 +104,7 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
         gridcolor: "rgba(0,0,0,0.05)",
         zeroline: false,
       },
-      dragmode: false,
+      dragmode: "zoom",
       hoverlabel: { font: { size: 10 } },
     }),
     [],
@@ -123,9 +122,63 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     }
   }
 
+  const graphDivRef = useRef<HTMLElement | null>(null);
+
+  const handleInitialized = useCallback(
+    (_figure: unknown, gd: HTMLElement) => {
+      graphDivRef.current = gd;
+      dispatch({ type: "setChartReady", id: msr.name, ready: true });
+
+      // Shift+drag → dynamic relayout to box select; mouseup restores zoom.
+      // window.Plotly is exposed globally by plotly.js when react-plotly.js loads it.
+      const getPlotly = (): { relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void } | undefined =>
+        (window as unknown as { Plotly?: { relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void } }).Plotly;
+      const onDown = (e: MouseEvent) => {
+        const Plotly = getPlotly();
+        if (!Plotly) return;
+        if (e.shiftKey) {
+          Plotly.relayout(gd, { dragmode: "select" });
+        }
+      };
+      const onUp = () => {
+        const Plotly = getPlotly();
+        if (!Plotly) return;
+        Plotly.relayout(gd, { dragmode: "zoom" });
+      };
+      gd.addEventListener("mousedown", onDown);
+      window.addEventListener("mouseup", onUp);
+      // Stash cleanup on the graphDiv so the unmount effect can run it.
+      (gd as HTMLElement & { __plotmateCleanup?: () => void }).__plotmateCleanup = () => {
+        gd.removeEventListener("mousedown", onDown);
+        window.removeEventListener("mouseup", onUp);
+      };
+    },
+    [msr.name, dispatch],
+  );
+
+  const handleSelected = useCallback(
+    (event: { points?: { pointIndex: number }[] } | undefined) => {
+      if (!event?.points || event.points.length === 0) {
+        dispatch({ type: "setBoxSelection", msrName: msr.name, chipIds: new Set() });
+        return;
+      }
+      const chipIds = new Set<string>();
+      for (const p of event.points) {
+        const chip = plottedChips[p.pointIndex];
+        if (chip) chipIds.add(chip.xy);
+      }
+      dispatch({ type: "setBoxSelection", msrName: msr.name, chipIds });
+    },
+    [dispatch, msr.name, plottedChips],
+  );
+
   useEffect(() => {
     return () => {
       dispatch({ type: "setChartReady", id: msr.name, ready: false });
+      const gd = graphDivRef.current as
+        | (HTMLElement & { __plotmateCleanup?: () => void })
+        | null;
+      gd?.__plotmateCleanup?.();
     };
   }, [msr.name, dispatch]);
 
@@ -166,7 +219,8 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
             config={{ displayModeBar: false, responsive: true }}
             style={{ width: "100%", height: "100%" }}
             useResizeHandler
-            onInitialized={() => dispatch({ type: "setChartReady", id: msr.name, ready: true })}
+            onInitialized={handleInitialized}
+            onSelected={handleSelected}
           />
         ) : (
           <div className="h-full w-full animate-pulse rounded bg-muted/60" />
