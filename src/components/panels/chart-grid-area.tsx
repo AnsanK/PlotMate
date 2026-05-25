@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { DataSet } from "@/types/dataset";
 import { useSelectionStore } from "@/lib/store/selection-store";
 import { ChartCard } from "@/components/charts/chart-card";
+import { ChartToolbar } from "@/components/charts/chart-toolbar";
 
 interface ChartGridAreaProps {
   dataset: DataSet;
@@ -62,7 +63,7 @@ export function ChartGridArea({ dataset }: ChartGridAreaProps) {
             </>
           )}
         </span>
-        <span className="text-[10px]">scroll ↓ for more</span>
+        <ChartToolbar />
       </header>
       <div className="flex-1 overflow-y-auto p-2">
         <div className="grid auto-rows-[180px] grid-cols-4 gap-2">
