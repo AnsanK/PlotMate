@@ -46,7 +46,7 @@ function GroupCard({ group, dataset }: GroupCardProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5 rounded-lg border border-border bg-card p-2">
       <header className="flex items-center justify-between text-xs font-semibold text-foreground">
-        <span>Group {group}</span>
+        <span>{group === 1 ? "Insights" : "Essential"}</span>
         <span className="text-[10px] font-normal text-muted-foreground">
           {ids.size}
         </span>
