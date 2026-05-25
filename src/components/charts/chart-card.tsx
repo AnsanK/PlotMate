@@ -35,21 +35,19 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     return merged;
   }, [globallyDeleted, perChartDeletedMap, msr.name]);
 
-  const { xs, ys, totalN, plottedChips } = useMemo(() => {
+  const { xs, ys, totalN } = useMemo(() => {
     const validChips = chips.filter((c) => !excludedXys.has(c.xy));
     const sampled = sampleIndices(validChips.length, SAMPLE_LIMIT);
     const _xs: number[] = [];
     const _ys: number[] = [];
-    const _plotted: typeof chips = [];
     for (const i of sampled) {
       const chip = validChips[i];
       const v = msr.values[chip.xy];
       if (v === undefined || v === null || Number.isNaN(v)) continue;
       _xs.push(chip.cd);
       _ys.push(v);
-      _plotted.push(chip);
     }
-    return { xs: _xs, ys: _ys, totalN: validChips.length, plottedChips: _plotted };
+    return { xs: _xs, ys: _ys, totalN: validChips.length };
   }, [chips, msr, excludedXys]);
 
   const reg = useMemo(() => linearRegression(xs, ys), [xs, ys]);
@@ -117,6 +115,9 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     (Number.isNaN(reg.r) ? "—" : reg.r.toFixed(3));
 
   function handleSelect(e: { shiftKey: boolean }) {
+    // When a tool mode is active, drag-release on the chart shouldn't be
+    // interpreted as a card click (which would toggle chart-card selection).
+    if (toolMode !== "idle") return;
     if (e.shiftKey) {
       dispatch({ type: "rangeChart", id: msr.name, orderedIds: orderedDrawnIds });
     } else {
@@ -127,6 +128,24 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
   const graphDivRef = useRef<HTMLElement | null>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const dragEndRef = useRef<{ x: number; y: number } | null>(null);
+  // Refs to current data so the raw Plotly listener (registered once in
+  // handleInitialized) always sees fresh values without re-registering.
+  const chipsRef = useRef(chips);
+  useEffect(() => {
+    chipsRef.current = chips;
+  }, [chips]);
+  const msrValuesRef = useRef(msr.values);
+  useEffect(() => {
+    msrValuesRef.current = msr.values;
+  }, [msr.values]);
+  const excludedXysRef = useRef(excludedXys);
+  useEffect(() => {
+    excludedXysRef.current = excludedXys;
+  }, [excludedXys]);
+  const msrNameRef = useRef(msr.name);
+  useEffect(() => {
+    msrNameRef.current = msr.name;
+  }, [msr.name]);
 
   const handleInitialized = useCallback(
     (_figure: unknown, gd: HTMLElement) => {
@@ -139,98 +158,145 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
       const onUp = (e: MouseEvent) => {
         dragEndRef.current = { x: e.clientX, y: e.clientY };
       };
-      gd.addEventListener("mousedown", onDown);
-      gd.addEventListener("mouseup", onUp);
-      (gd as HTMLElement & { __plotmateCleanup?: () => void }).__plotmateCleanup = () => {
-        gd.removeEventListener("mousedown", onDown);
-        gd.removeEventListener("mouseup", onUp);
+      // capture phase + window-level mouseup so Plotly's own handlers don't
+      // swallow our coords (capture fires before Plotly's bubble handler;
+      // mouseup is bound to window so a release outside the chart still
+      // registers an end coord).
+      gd.addEventListener("mousedown", onDown, { capture: true });
+      window.addEventListener("mouseup", onUp, { capture: true });
+
+      // Bypass react-plotly's onSelected prop (which seems to not wire
+      // reliably under plotly.js 3.x) by registering the event directly
+      // on the graphDiv. Plotly attaches an .on() method to the div.
+      type PlotlyGd = HTMLElement & {
+        on?: (event: string, cb: (e: unknown) => void) => void;
+        removeListener?: (event: string, cb: (e: unknown) => void) => void;
+      };
+      const plotlyGd = gd as PlotlyGd;
+      const onSelectedRaw = (eventData: unknown) => {
+        const ev = eventData as
+          | { range?: { x: number[]; y: number[] } }
+          | undefined;
+        const currentMode = useSelectionStore.getState().toolMode;
+        const currentMsr = msrNameRef.current;
+
+        const Plotly = (
+          window as {
+            Plotly?: {
+              relayout: (
+                gd: HTMLElement,
+                layout: Record<string, unknown>,
+              ) => void;
+              restyle?: (
+                gd: HTMLElement,
+                update: Record<string, unknown>,
+              ) => void;
+            };
+          }
+        ).Plotly;
+
+        // Always clear the lingering selection rectangle + the per-trace
+        // selectedpoints highlight (darker dots) on any path below.
+        const clearBox = () => {
+          if (!Plotly) return;
+          Plotly.relayout(gd, { selections: [] });
+          try {
+            Plotly.restyle?.(gd, { selectedpoints: null });
+          } catch {
+            // restyle can throw if there are no traces yet; ignore.
+          }
+        };
+
+        if (currentMode === "idle" || !ev?.range) {
+          clearBox();
+          return;
+        }
+
+        if (currentMode === "zoom") {
+          const start = dragStartRef.current;
+          const end = dragEndRef.current;
+          if (!Plotly) {
+            clearBox();
+            return;
+          }
+          // Determine direction from raw drag coords (fallback: drag-screen
+          // start/end might be missing if Plotly captured mousedown; use the
+          // range orientation as a fallback signal). Plotly returns range.x
+          // as [x0, x1] in data coords where x0 is drag-start. So if x1 < x0
+          // we know the user dragged from right to left.
+          let isZoomIn: boolean;
+          if (start && end) {
+            isZoomIn = end.x - start.x > 0 && end.y - start.y > 0;
+          } else {
+            // Fallback: heuristic on range direction (Plotly may sort, so
+            // default to zoom in when we cannot determine direction).
+            isZoomIn = true;
+          }
+          if (isZoomIn) {
+            Plotly.relayout(gd, {
+              "xaxis.range": ev.range.x,
+              "yaxis.range": ev.range.y,
+              selections: [],
+            });
+          } else {
+            Plotly.relayout(gd, {
+              "xaxis.autorange": true,
+              "yaxis.autorange": true,
+              selections: [],
+            });
+          }
+          return;
+        }
+
+        // delete / deleteAll: walk ALL chips (not just sampled) so the entire
+        // selected region is removed, not just the visible subsample.
+        const xMin = Math.min(ev.range.x[0], ev.range.x[1]);
+        const xMax = Math.max(ev.range.x[0], ev.range.x[1]);
+        const yMin = Math.min(ev.range.y[0], ev.range.y[1]);
+        const yMax = Math.max(ev.range.y[0], ev.range.y[1]);
+
+        const chipIds = new Set<string>();
+        const excluded = excludedXysRef.current;
+        const values = msrValuesRef.current;
+        for (const chip of chipsRef.current) {
+          if (excluded.has(chip.xy)) continue;
+          const v = values[chip.xy];
+          if (v === undefined || v === null || Number.isNaN(v)) continue;
+          if (
+            chip.cd >= xMin &&
+            chip.cd <= xMax &&
+            v >= yMin &&
+            v <= yMax
+          ) {
+            chipIds.add(chip.xy);
+          }
+        }
+        if (chipIds.size === 0) return;
+
+        dispatch({ type: "setBoxSelection", msrName: currentMsr, chipIds });
+        if (currentMode === "delete") {
+          dispatch({ type: "deletePerChart" });
+        } else if (currentMode === "deleteAll") {
+          dispatch({ type: "deleteGlobal" });
+        }
+        if (Plotly) Plotly.relayout(gd, { selections: [] });
+      };
+      plotlyGd.on?.("plotly_selected", onSelectedRaw);
+
+      (
+        gd as HTMLElement & { __plotmateCleanup?: () => void }
+      ).__plotmateCleanup = () => {
+        gd.removeEventListener("mousedown", onDown, { capture: true });
+        window.removeEventListener("mouseup", onUp, { capture: true });
+        plotlyGd.removeListener?.("plotly_selected", onSelectedRaw);
       };
     },
     [msr.name, dispatch],
   );
 
-  // Read tool mode via store.getState() inside callback to avoid stale closure
-  // (react-plotly may keep an initial-mount handler reference and not re-wire
-  // when our memoized callback identity changes).
-  const handleSelected = useCallback(
-    (
-      event:
-        | {
-            points?: { pointIndex?: number; pointNumber?: number }[];
-            range?: { x: number[]; y: number[] };
-          }
-        | undefined,
-    ) => {
-      const currentMode = useSelectionStore.getState().toolMode;
-      if (currentMode === "idle") return;
-
-      if (currentMode === "zoom") {
-        const start = dragStartRef.current;
-        const end = dragEndRef.current;
-        if (!start || !end || !event?.range) return;
-
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        const isZoomIn = dx > 0 && dy > 0;
-
-        const Plotly = (
-          window as {
-            Plotly?: {
-              relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void;
-            };
-          }
-        ).Plotly;
-        const gd = graphDivRef.current;
-        if (!Plotly || !gd) return;
-
-        if (isZoomIn) {
-          Plotly.relayout(gd, {
-            "xaxis.range": event.range.x,
-            "yaxis.range": event.range.y,
-          });
-        } else {
-          Plotly.relayout(gd, {
-            "xaxis.autorange": true,
-            "yaxis.autorange": true,
-          });
-        }
-        return;
-      }
-
-      if (!event?.points || event.points.length === 0) return;
-
-      const chipIds = new Set<string>();
-      for (const p of event.points) {
-        const idx = p.pointIndex ?? p.pointNumber;
-        if (idx === undefined) continue;
-        const chip = plottedChips[idx];
-        if (chip) chipIds.add(chip.xy);
-      }
-      if (chipIds.size === 0) return;
-
-      dispatch({ type: "setBoxSelection", msrName: msr.name, chipIds });
-      if (currentMode === "delete") {
-        dispatch({ type: "deletePerChart" });
-      } else if (currentMode === "deleteAll") {
-        dispatch({ type: "deleteGlobal" });
-      }
-
-      // Clear the lingering selection box drawn by Plotly so the user sees
-      // the deletion immediately rather than the stale rectangle.
-      const Plotly = (
-        window as {
-          Plotly?: {
-            relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void;
-          };
-        }
-      ).Plotly;
-      const gd = graphDivRef.current;
-      if (Plotly && gd) {
-        Plotly.relayout(gd, { selections: [] });
-      }
-    },
-    [dispatch, msr.name, plottedChips],
-  );
+  // (handleSelected via Plot prop is bypassed because react-plotly's onSelected
+  // wiring is unreliable under plotly.js 3.x. The raw plotly_selected listener
+  // attached inside handleInitialized handles everything.)
 
   // Force Plotly to re-apply dragmode when toolMode changes -- react-plotly's
   // own diff doesn't always re-call relayout on layout-object identity change.
@@ -297,7 +363,6 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
             style={{ width: "100%", height: "100%" }}
             useResizeHandler
             onInitialized={handleInitialized}
-            onSelected={handleSelected}
           />
         ) : (
           <div className="h-full w-full animate-pulse rounded bg-muted/60" />
