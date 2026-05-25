@@ -14,6 +14,10 @@ const initial: SelectionState = {
   lastClickedInGroup1Id: null,
   lastClickedInGroup2Id: null,
   readyChartIds: new Set<string>(),
+  globallyDeletedChipIds: new Set<string>(),
+  perChartDeletedChipIds: new Map<string, Set<string>>(),
+  currentBoxSelection: null,
+  deleteHistory: [],
 };
 
 describe("selection reducer", () => {
@@ -188,6 +192,10 @@ describe("chart card selection (toggleChart / rangeChart / clearChartSelection)"
     lastClickedInGroup1Id: null,
     lastClickedInGroup2Id: null,
     readyChartIds: new Set<string>(),
+    globallyDeletedChipIds: new Set<string>(),
+    perChartDeletedChipIds: new Map<string, Set<string>>(),
+    currentBoxSelection: null,
+    deleteHistory: [],
   };
 
   it("toggleChart adds id when not selected", () => {
@@ -270,6 +278,10 @@ describe("group workflow (addToGroup / deleteFromGroup / toggleInGroup / rangeIn
     lastClickedInGroup1Id: null,
     lastClickedInGroup2Id: null,
     readyChartIds: new Set<string>(),
+    globallyDeletedChipIds: new Set<string>(),
+    perChartDeletedChipIds: new Map<string, Set<string>>(),
+    currentBoxSelection: null,
+    deleteHistory: [],
   };
 
   describe("addToGroup", () => {
@@ -461,6 +473,10 @@ describe("ready chart tracking (setChartReady)", () => {
     lastClickedInGroup1Id: null,
     lastClickedInGroup2Id: null,
     readyChartIds: new Set<string>(),
+    globallyDeletedChipIds: new Set<string>(),
+    perChartDeletedChipIds: new Map<string, Set<string>>(),
+    currentBoxSelection: null,
+    deleteHistory: [],
   };
 
   it("setChartReady true adds id to readyChartIds", () => {
@@ -507,5 +523,199 @@ describe("ready chart tracking (setChartReady)", () => {
       drawn: false,
     });
     expect(next.readyChartIds.size).toBe(0);
+  });
+});
+
+describe("delete workflow (setBoxSelection / deletePerChart / deleteGlobal / undoDelete / resetDelete)", () => {
+  const initDel: SelectionState = {
+    selectedIds: new Set(),
+    drawnIds: new Set(),
+    lastClickedId: null,
+    selectedChartIds: new Set(),
+    lastClickedChartId: null,
+    group1Ids: new Set(),
+    group2Ids: new Set(),
+    selectedInGroup1Ids: new Set(),
+    selectedInGroup2Ids: new Set(),
+    lastClickedInGroup1Id: null,
+    lastClickedInGroup2Id: null,
+    readyChartIds: new Set(),
+    globallyDeletedChipIds: new Set(),
+    perChartDeletedChipIds: new Map(),
+    currentBoxSelection: null,
+    deleteHistory: [],
+  };
+
+  describe("setBoxSelection", () => {
+    it("stores current box selection", () => {
+      const next = applyAction(initDel, {
+        type: "setBoxSelection",
+        msrName: "MSR0009",
+        chipIds: new Set(["100_200", "101_200"]),
+      });
+      expect(next.currentBoxSelection).not.toBeNull();
+      expect(next.currentBoxSelection!.msrName).toBe("MSR0009");
+      expect([...next.currentBoxSelection!.chipIds].sort()).toEqual(["100_200", "101_200"]);
+    });
+
+    it("replaces previous box selection from another chart", () => {
+      const state: SelectionState = {
+        ...initDel,
+        currentBoxSelection: { msrName: "MSR0001", chipIds: new Set(["x"]) },
+      };
+      const next = applyAction(state, {
+        type: "setBoxSelection",
+        msrName: "MSR0002",
+        chipIds: new Set(["y"]),
+      });
+      expect(next.currentBoxSelection!.msrName).toBe("MSR0002");
+      expect([...next.currentBoxSelection!.chipIds]).toEqual(["y"]);
+    });
+
+    it("setBoxSelection with empty chipIds clears selection", () => {
+      const state: SelectionState = {
+        ...initDel,
+        currentBoxSelection: { msrName: "MSR0001", chipIds: new Set(["x"]) },
+      };
+      const next = applyAction(state, {
+        type: "setBoxSelection",
+        msrName: "MSR0001",
+        chipIds: new Set(),
+      });
+      expect(next.currentBoxSelection).toBeNull();
+    });
+  });
+
+  describe("deletePerChart", () => {
+    it("adds box selection chipIds to perChartDeletedChipIds for that MSR", () => {
+      const state: SelectionState = {
+        ...initDel,
+        currentBoxSelection: { msrName: "MSR0009", chipIds: new Set(["a", "b"]) },
+      };
+      const next = applyAction(state, { type: "deletePerChart" });
+      expect([...next.perChartDeletedChipIds.get("MSR0009")!].sort()).toEqual(["a", "b"]);
+      expect(next.currentBoxSelection).toBeNull();
+      expect(next.deleteHistory).toHaveLength(1);
+      expect(next.deleteHistory[0]).toEqual({
+        kind: "perChart",
+        msrName: "MSR0009",
+        chipIds: ["a", "b"],
+      });
+    });
+
+    it("merges with existing perChartDeletedChipIds for same MSR", () => {
+      const state: SelectionState = {
+        ...initDel,
+        perChartDeletedChipIds: new Map([["MSR0009", new Set(["x"])]]),
+        currentBoxSelection: { msrName: "MSR0009", chipIds: new Set(["y", "z"]) },
+      };
+      const next = applyAction(state, { type: "deletePerChart" });
+      expect([...next.perChartDeletedChipIds.get("MSR0009")!].sort()).toEqual(["x", "y", "z"]);
+    });
+
+    it("is no-op when currentBoxSelection is null", () => {
+      const next = applyAction(initDel, { type: "deletePerChart" });
+      expect(next).toBe(initDel);
+    });
+  });
+
+  describe("deleteGlobal", () => {
+    it("adds box selection chipIds to globallyDeletedChipIds", () => {
+      const state: SelectionState = {
+        ...initDel,
+        currentBoxSelection: { msrName: "MSR0009", chipIds: new Set(["a", "b"]) },
+      };
+      const next = applyAction(state, { type: "deleteGlobal" });
+      expect([...next.globallyDeletedChipIds].sort()).toEqual(["a", "b"]);
+      expect(next.currentBoxSelection).toBeNull();
+      expect(next.deleteHistory).toHaveLength(1);
+      expect(next.deleteHistory[0]).toEqual({
+        kind: "global",
+        chipIds: ["a", "b"],
+      });
+    });
+
+    it("is no-op when currentBoxSelection is null", () => {
+      const next = applyAction(initDel, { type: "deleteGlobal" });
+      expect(next).toBe(initDel);
+    });
+  });
+
+  describe("undoDelete", () => {
+    it("undoes most recent perChart delete", () => {
+      const state: SelectionState = {
+        ...initDel,
+        perChartDeletedChipIds: new Map([["MSR0009", new Set(["a", "b", "old"])]]),
+        deleteHistory: [
+          { kind: "perChart", msrName: "MSR0009", chipIds: ["a", "b"] },
+        ],
+      };
+      const next = applyAction(state, { type: "undoDelete" });
+      expect([...next.perChartDeletedChipIds.get("MSR0009")!]).toEqual(["old"]);
+      expect(next.deleteHistory).toHaveLength(0);
+    });
+
+    it("undoes most recent global delete", () => {
+      const state: SelectionState = {
+        ...initDel,
+        globallyDeletedChipIds: new Set(["a", "b", "old"]),
+        deleteHistory: [
+          { kind: "global", chipIds: ["a", "b"] },
+        ],
+      };
+      const next = applyAction(state, { type: "undoDelete" });
+      expect([...next.globallyDeletedChipIds].sort()).toEqual(["old"]);
+      expect(next.deleteHistory).toHaveLength(0);
+    });
+
+    it("is no-op when history is empty", () => {
+      const next = applyAction(initDel, { type: "undoDelete" });
+      expect(next).toBe(initDel);
+    });
+
+    it("removes the MSR key entirely if perChart set becomes empty", () => {
+      const state: SelectionState = {
+        ...initDel,
+        perChartDeletedChipIds: new Map([["MSR0009", new Set(["a"])]]),
+        deleteHistory: [
+          { kind: "perChart", msrName: "MSR0009", chipIds: ["a"] },
+        ],
+      };
+      const next = applyAction(state, { type: "undoDelete" });
+      expect(next.perChartDeletedChipIds.has("MSR0009")).toBe(false);
+    });
+  });
+
+  describe("resetDelete", () => {
+    it("clears all delete state", () => {
+      const state: SelectionState = {
+        ...initDel,
+        globallyDeletedChipIds: new Set(["a"]),
+        perChartDeletedChipIds: new Map([["MSR0009", new Set(["b"])]]),
+        currentBoxSelection: { msrName: "MSR0009", chipIds: new Set(["c"]) },
+        deleteHistory: [{ kind: "global", chipIds: ["a"] }],
+      };
+      const next = applyAction(state, { type: "resetDelete" });
+      expect(next.globallyDeletedChipIds.size).toBe(0);
+      expect(next.perChartDeletedChipIds.size).toBe(0);
+      expect(next.currentBoxSelection).toBeNull();
+      expect(next.deleteHistory).toHaveLength(0);
+    });
+  });
+
+  describe("draw action preserves deleted state (Q1=B)", () => {
+    it("draw does not touch deleted slices", () => {
+      const state: SelectionState = {
+        ...initDel,
+        selectedIds: new Set(["new"]),
+        globallyDeletedChipIds: new Set(["a"]),
+        perChartDeletedChipIds: new Map([["MSR0009", new Set(["b"])]]),
+        deleteHistory: [{ kind: "global", chipIds: ["a"] }],
+      };
+      const next = applyAction(state, { type: "draw" });
+      expect([...next.globallyDeletedChipIds]).toEqual(["a"]);
+      expect([...next.perChartDeletedChipIds.get("MSR0009")!]).toEqual(["b"]);
+      expect(next.deleteHistory).toHaveLength(1);
+    });
   });
 });

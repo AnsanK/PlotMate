@@ -11,9 +11,17 @@ export interface SelectionState {
   lastClickedInGroup1Id: string | null;
   lastClickedInGroup2Id: string | null;
   readyChartIds: Set<string>;
+  globallyDeletedChipIds: Set<string>;
+  perChartDeletedChipIds: Map<string, Set<string>>;
+  currentBoxSelection: { msrName: string; chipIds: Set<string> } | null;
+  deleteHistory: DeleteEvent[];
 }
 
 export type GroupNumber = 1 | 2;
+
+export type DeleteEvent =
+  | { kind: "perChart"; msrName: string; chipIds: string[] }
+  | { kind: "global"; chipIds: string[] };
 
 export type SelectionAction =
   | { type: "selectOnly"; id: string; orderedIds: string[] }
@@ -30,7 +38,12 @@ export type SelectionAction =
   | { type: "rangeInGroup"; group: GroupNumber; id: string; orderedIds: string[] }
   | { type: "clearGroupSelection"; group: GroupNumber }
   | { type: "deleteFromGroup"; group: GroupNumber }
-  | { type: "setChartReady"; id: string; ready: boolean };
+  | { type: "setChartReady"; id: string; ready: boolean }
+  | { type: "setBoxSelection"; msrName: string; chipIds: Set<string> }
+  | { type: "deletePerChart" }
+  | { type: "deleteGlobal" }
+  | { type: "undoDelete" }
+  | { type: "resetDelete" };
 
 function groupKeys(group: GroupNumber) {
   return group === 1
@@ -213,6 +226,78 @@ export function applyAction(
       if (action.ready) next.add(action.id);
       else next.delete(action.id);
       return { ...state, readyChartIds: next };
+    }
+
+    case "setBoxSelection": {
+      if (action.chipIds.size === 0) {
+        return { ...state, currentBoxSelection: null };
+      }
+      return {
+        ...state,
+        currentBoxSelection: { msrName: action.msrName, chipIds: action.chipIds },
+      };
+    }
+
+    case "deletePerChart": {
+      if (!state.currentBoxSelection) return state;
+      const { msrName, chipIds } = state.currentBoxSelection;
+      const nextMap = new Map(state.perChartDeletedChipIds);
+      const merged = new Set(nextMap.get(msrName) ?? []);
+      for (const id of chipIds) merged.add(id);
+      nextMap.set(msrName, merged);
+      return {
+        ...state,
+        perChartDeletedChipIds: nextMap,
+        currentBoxSelection: null,
+        deleteHistory: [
+          ...state.deleteHistory,
+          { kind: "perChart", msrName, chipIds: [...chipIds] },
+        ],
+      };
+    }
+
+    case "deleteGlobal": {
+      if (!state.currentBoxSelection) return state;
+      const { chipIds } = state.currentBoxSelection;
+      const nextGlobal = new Set(state.globallyDeletedChipIds);
+      for (const id of chipIds) nextGlobal.add(id);
+      return {
+        ...state,
+        globallyDeletedChipIds: nextGlobal,
+        currentBoxSelection: null,
+        deleteHistory: [
+          ...state.deleteHistory,
+          { kind: "global", chipIds: [...chipIds] },
+        ],
+      };
+    }
+
+    case "undoDelete": {
+      if (state.deleteHistory.length === 0) return state;
+      const last = state.deleteHistory[state.deleteHistory.length - 1];
+      const nextHistory = state.deleteHistory.slice(0, -1);
+      if (last.kind === "global") {
+        const nextGlobal = new Set(state.globallyDeletedChipIds);
+        for (const id of last.chipIds) nextGlobal.delete(id);
+        return { ...state, globallyDeletedChipIds: nextGlobal, deleteHistory: nextHistory };
+      } else {
+        const nextMap = new Map(state.perChartDeletedChipIds);
+        const set = new Set(nextMap.get(last.msrName) ?? []);
+        for (const id of last.chipIds) set.delete(id);
+        if (set.size === 0) nextMap.delete(last.msrName);
+        else nextMap.set(last.msrName, set);
+        return { ...state, perChartDeletedChipIds: nextMap, deleteHistory: nextHistory };
+      }
+    }
+
+    case "resetDelete": {
+      return {
+        ...state,
+        globallyDeletedChipIds: new Set(),
+        perChartDeletedChipIds: new Map(),
+        currentBoxSelection: null,
+        deleteHistory: [],
+      };
     }
   }
 }

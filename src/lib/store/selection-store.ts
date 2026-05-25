@@ -24,6 +24,10 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
   lastClickedInGroup1Id: null,
   lastClickedInGroup2Id: null,
   readyChartIds: new Set<string>(),
+  globallyDeletedChipIds: new Set<string>(),
+  perChartDeletedChipIds: new Map<string, Set<string>>(),
+  currentBoxSelection: null,
+  deleteHistory: [],
   searchQuery: "",
   setSearchQuery: (q) => set({ searchQuery: q }),
   dispatch: (action) =>
@@ -42,6 +46,10 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
           lastClickedInGroup1Id: state.lastClickedInGroup1Id,
           lastClickedInGroup2Id: state.lastClickedInGroup2Id,
           readyChartIds: state.readyChartIds,
+          globallyDeletedChipIds: state.globallyDeletedChipIds,
+          perChartDeletedChipIds: state.perChartDeletedChipIds,
+          currentBoxSelection: state.currentBoxSelection,
+          deleteHistory: state.deleteHistory,
         },
         action,
       );
