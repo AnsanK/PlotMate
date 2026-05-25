@@ -5,6 +5,7 @@ import type { DataSet } from "@/types/dataset";
 import { useSelectionStore } from "@/lib/store/selection-store";
 import { cn } from "@/lib/utils";
 import type { GroupNumber } from "@/lib/selection/reducer";
+import { ExportButton } from "@/components/panels/export-button";
 
 interface RightPanelProps {
   dataset: DataSet;
@@ -15,6 +16,7 @@ export function RightPanel({ dataset }: RightPanelProps) {
     <aside className="flex w-[140px] shrink-0 flex-col gap-2">
       <GroupCard group={1} dataset={dataset} />
       <GroupCard group={2} dataset={dataset} />
+      <ExportButton dataset={dataset} />
     </aside>
   );
 }
