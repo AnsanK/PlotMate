@@ -149,18 +149,22 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
     [msr.name, dispatch],
   );
 
+  // Read tool mode via store.getState() inside callback to avoid stale closure
+  // (react-plotly may keep an initial-mount handler reference and not re-wire
+  // when our memoized callback identity changes).
   const handleSelected = useCallback(
     (
       event:
         | {
-            points?: { pointIndex: number }[];
+            points?: { pointIndex?: number; pointNumber?: number }[];
             range?: { x: number[]; y: number[] };
           }
         | undefined,
     ) => {
-      if (toolMode === "idle") return;
+      const currentMode = useSelectionStore.getState().toolMode;
+      if (currentMode === "idle") return;
 
-      if (toolMode === "zoom") {
+      if (currentMode === "zoom") {
         const start = dragStartRef.current;
         const end = dragEndRef.current;
         if (!start || !end || !event?.range) return;
@@ -197,20 +201,53 @@ export function ChartCard({ msr, chips, orderedDrawnIds }: ChartCardProps) {
 
       const chipIds = new Set<string>();
       for (const p of event.points) {
-        const chip = plottedChips[p.pointIndex];
+        const idx = p.pointIndex ?? p.pointNumber;
+        if (idx === undefined) continue;
+        const chip = plottedChips[idx];
         if (chip) chipIds.add(chip.xy);
       }
       if (chipIds.size === 0) return;
 
       dispatch({ type: "setBoxSelection", msrName: msr.name, chipIds });
-      if (toolMode === "delete") {
+      if (currentMode === "delete") {
         dispatch({ type: "deletePerChart" });
-      } else if (toolMode === "deleteAll") {
+      } else if (currentMode === "deleteAll") {
         dispatch({ type: "deleteGlobal" });
       }
+
+      // Clear the lingering selection box drawn by Plotly so the user sees
+      // the deletion immediately rather than the stale rectangle.
+      const Plotly = (
+        window as {
+          Plotly?: {
+            relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void;
+          };
+        }
+      ).Plotly;
+      const gd = graphDivRef.current;
+      if (Plotly && gd) {
+        Plotly.relayout(gd, { selections: [] });
+      }
     },
-    [toolMode, dispatch, msr.name, plottedChips],
+    [dispatch, msr.name, plottedChips],
   );
+
+  // Force Plotly to re-apply dragmode when toolMode changes -- react-plotly's
+  // own diff doesn't always re-call relayout on layout-object identity change.
+  useEffect(() => {
+    const Plotly = (
+      window as {
+        Plotly?: {
+          relayout: (gd: HTMLElement, layout: Record<string, unknown>) => void;
+        };
+      }
+    ).Plotly;
+    const gd = graphDivRef.current;
+    if (!Plotly || !gd) return;
+    Plotly.relayout(gd, {
+      dragmode: toolMode === "idle" ? false : "select",
+    });
+  }, [toolMode]);
 
   useEffect(() => {
     return () => {
