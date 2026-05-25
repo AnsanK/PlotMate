@@ -27,7 +27,7 @@ describe("buildExportWorkbook", () => {
     expect(wb.SheetNames).toEqual(["Raw", "Insights", "Essential"]);
   });
 
-  it("Raw sheet has chip rows with metadata + all MSR values", () => {
+  it("Raw sheet mirrors raw_data_chips.xlsx (metadata + CD only, no MSR cols)", () => {
     const wb = buildExportWorkbook(makeDataset(), new Set(), new Set(), {
       global: new Set(),
       perChart: new Map(),
@@ -36,6 +36,9 @@ describe("buildExportWorkbook", () => {
       defval: null,
     });
     expect(rows).toHaveLength(3);
+    expect(Object.keys(rows[0]).sort()).toEqual(
+      ["CD", "Chip_X", "Chip_Y", "ID", "Lotid5", "WF", "X_Y"].sort(),
+    );
     expect(rows[0].Lotid5).toBe("ABCDE");
     expect(rows[0].WF).toBe(13);
     expect(rows[0].ID).toBe(100000);
@@ -43,12 +46,9 @@ describe("buildExportWorkbook", () => {
     expect(rows[0].Chip_Y).toBe(200);
     expect(rows[0].X_Y).toBe("100_200");
     expect(rows[0].CD).toBe(50.0);
-    expect(rows[0].MSR0001).toBe(11);
-    expect(rows[0].MSR0002).toBe(21);
-    expect(rows[0].MSR0003).toBe(31);
   });
 
-  it("Raw sheet ignores deletions (always full dataset)", () => {
+  it("Raw sheet ignores deletions (always full chip metadata)", () => {
     const wb = buildExportWorkbook(
       makeDataset(),
       new Set(),
@@ -62,8 +62,8 @@ describe("buildExportWorkbook", () => {
       defval: null,
     });
     expect(rows).toHaveLength(3);
-    expect(rows[0].MSR0001).toBe(11);
-    expect(rows[1].MSR0001).toBe(12);
+    expect(rows[0].X_Y).toBe("100_200");
+    expect(rows[1].X_Y).toBe("100_201");
   });
 
   it("Insights sheet has only selected MSR rows with chip-xy columns", () => {

@@ -14,21 +14,11 @@ export function buildExportWorkbook(
 ): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
 
-  // ---------- Sheet 1: Raw (long-format, deletions ignored) ----------
-  const msrNames = dataset.msrItems.map((m) => m.name);
-  const rawHeader = [
-    "Lotid5",
-    "WF",
-    "ID",
-    "Chip_X",
-    "Chip_Y",
-    "X_Y",
-    "CD",
-    ...msrNames,
-  ];
+  // ---------- Sheet 1: Raw (chip metadata + CD only, mirrors raw_data_chips.xlsx) ----------
+  const rawHeader = ["Lotid5", "WF", "ID", "Chip_X", "Chip_Y", "X_Y", "CD"];
   const rawRows: (string | number | null)[][] = [rawHeader];
   for (const chip of dataset.chips) {
-    const row: (string | number | null)[] = [
+    rawRows.push([
       chip.lotId,
       chip.wf,
       chip.id,
@@ -36,12 +26,7 @@ export function buildExportWorkbook(
       chip.chipY,
       chip.xy,
       chip.cd,
-    ];
-    for (const msr of dataset.msrItems) {
-      const v = msr.values[chip.xy];
-      row.push(v ?? null);
-    }
-    rawRows.push(row);
+    ]);
   }
   XLSX.utils.book_append_sheet(
     wb,
